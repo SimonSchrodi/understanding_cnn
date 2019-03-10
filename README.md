@@ -1,1 +1,1 @@
-# [Understanding CNNs with Visualizations]
+# Understanding CNNs with Visualizations
