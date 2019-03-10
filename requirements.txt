@@ -1,0 +1,16 @@
+Keras >= 2.2.4
+Keras-Applications >= 1.0.7
+Pillow >= 5.4.1
+deeplift >= 0.6.8.1
+future 0.17.1
+h5py >= 2.9.0
+innvestigate >= 1.0.7
+keras-vis >= 0.4.1
+matplotlib >= 3.0.2
+numpy >= 1.16.0
+opencv-python >= 4.0.0.21
+scikit-image >= 0.14.2
+scipy >= 1.2.0
+tensorboard >= 1.13.1
+tensorflow >= 1.13.1
+tensorflow-hub >= 0.3.0
