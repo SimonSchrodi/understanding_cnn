@@ -10,7 +10,7 @@ Pretrained models on imagenet are wrapped up for simple use in experiments.
 The following models are available for use:
 
 * [AlexNet](https://papers.nips.cc/paper/4824-imagenet-classification-with-deep-convolutional-neural-networks)
-* [VGG16/19] (https://arxiv.org/abs/1409.1556)
+* [VGG16/19](https://arxiv.org/abs/1409.1556)
 * Inception Models [V1](https://arxiv.org/abs/1409.4842),
 [V2/3](https://arxiv.org/abs/1512.00567) and
 [V4/ResNet V1/2](https://arxiv.org/abs/1602.07261)
