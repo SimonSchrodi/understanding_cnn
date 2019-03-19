@@ -30,9 +30,9 @@ import warnings
 
 import tensorflow as tf
 from scipy.special import softmax
-import PIL
+import cv2
 
-import models.inceptionV4.inception_v4 as inception_v4
+#import models.inceptionV4.inception_v4 as inception_v4
 import models.model_utils as mutils
 import innvestigate.utils as iutils
 
@@ -64,12 +64,35 @@ class Hub_Model:
         pass
 
     def preprocess_input(self, x, **kwargs):
-        assert isinstance(x, PIL.Image.Image)
-        x = x.convert('RGB')
-        x = x.resize(self.get_image_size())
-        x = np.array(x)
-        x = x / 255.0
-        x = x[np.newaxis,...]
+        """
+        Prepocesses singe input image and returns batch
+
+        Args:
+            x: RGB image or image batch
+            **kwargs:
+
+        Returns:
+            img batch
+
+        """
+
+        def _preprocess(x):
+            x = cv2.resize(x, dsize=self.get_image_size())
+            x = np.array(x)
+            x = x / np.amax(x)  # normalize input
+            return x
+
+        if not isinstance(x,np.ndarray):
+            x = np.array(x)
+
+        if x.ndim == 3:
+            x = _preprocess(x,**kwargs)
+            x = x[np.newaxis, ...]
+            return x
+
+        for i in range(x.shape[0]):
+            x[i] = _preprocess(x[i],**kwargs)
+
         return x
 
     def predict_wo_softmax(self,x, batch_size=None, verbose=0, steps=None):
@@ -96,12 +119,35 @@ class Keras_App_Model:
         pass
 
     def preprocess_input(self, x, **kwargs):
-        assert isinstance(x, PIL.Image.Image)
-        x = x.convert('RGB')
-        x = x.resize(self.get_image_size())
-        x = image.img_to_array(x)
-        x = np.expand_dims(x, axis=0)
-        return self._module.preprocess_input(x, **kwargs)
+        """
+            Prepocesses singe input image and returns batch
+
+            Args:
+                x: RGB image or image batch
+                **kwargs:
+
+            Returns:
+                img batch
+        """
+
+        def _preprocess(x):
+            x = cv2.resize(x, dsize=self.get_image_size())
+            x = image.img_to_array(x)
+            x = x / np.amax(x)  # normalize input
+            return self._module.preprocess_input(x, **kwargs)
+
+        if not isinstance(x,np.ndarray):
+            x = np.array(x)
+
+        if x.ndim == 3:
+            x = _preprocess(x,**kwargs)
+            x = x[np.newaxis,...]
+            return x
+
+        for i in range(x.shape[0]):
+            x[i] = _preprocess(x[i])
+
+        return x
 
     def predict_wo_softmax(self,x, batch_size=None, verbose=0, steps=None):
         return self._classifier_model.predict(x, batch_size=None, verbose=0, steps=None)
