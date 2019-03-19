@@ -377,7 +377,7 @@ class AlexNet:
     def get_color_coding(self):
         return self.__color_coding
 
-    def get_pattern(self):
+    def get_patterns(self):
         return self.__patterns
 
 ###############################################################################
@@ -421,7 +421,7 @@ class VGG16(Keras_App_Model):
     def get_color_coding(self):
         return self.__color_coding
 
-    def get_pattern(self):
+    def get_patterns(self):
         return self.__patterns
 
 class VGG19(Keras_App_Model):
@@ -461,7 +461,7 @@ class VGG19(Keras_App_Model):
     def get_color_coding(self):
         return self.__color_coding
 
-    def get_pattern(self):
+    def get_patterns(self):
         return self.__patterns
 
 ###############################################################################
