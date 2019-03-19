@@ -6,7 +6,7 @@ For visualizations the [iNNvestigate toolbox](https://github.com/albermax/innves
 
 ## [Models](https://github.com/infomon/understanding-cnn/tree/master/models)
 
-Pretrained models on imagenet are wrapped up for simple use in experiments.
+Pretrained Keras models on imagenet are wrapped up for simple use in experiments.
 The following models are available for use:
 
 * [AlexNet](https://papers.nips.cc/paper/4824-imagenet-classification-with-deep-convolutional-neural-networks)
@@ -17,7 +17,7 @@ The following models are available for use:
 * ResNet [V1](https://arxiv.org/abs/1512.03385) and [V2](https://arxiv.org/abs/1603.05027)
 * [ResNeXt](https://arxiv.org/abs/1611.05431)
 
-For example, one can load a model and use the as follows:
+For example, one can load a model and use it as follows:
 
 ```python
 from models import model_loader
