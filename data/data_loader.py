@@ -45,7 +45,7 @@ def load_from_folder(dirpath, IMAGE_SIZE=(224,224)):
             img = cv2.imread(os.path.join(dirpath,f))
             img = cv2.resize(img, IMAGE_SIZE)
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            image_list.append(img)
+            image_list.append((img, os.path.splitext(f)[0]))
         return image_list
     print('Error: Path is no dir')
     return []
