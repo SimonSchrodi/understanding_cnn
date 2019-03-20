@@ -35,7 +35,6 @@ import cv2
 #import models.inceptionV4.inception_v4 as inception_v4
 import models.model_utils as mutils
 import innvestigate.utils as iutils
-import utils.utils_imagenet as imagenet_utils
 
 __all__ = [
     "AlexNet",
