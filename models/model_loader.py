@@ -387,7 +387,7 @@ class VGG16(Keras_App_Model):
     __name = 'vgg16'
     _module = keras.applications.vgg16
     __color_coding = 'rgb'#TODO innvestigate says bgr?
-    patterns = None
+    __patterns = None
 
     def __init__(self):
         classifier_model = keras.applications.vgg16.VGG16(include_top=True, weights='imagenet')
@@ -427,7 +427,7 @@ class VGG19(Keras_App_Model):
     __name = 'vgg19'
     _module = keras.applications.vgg19
     __color_coding = 'rgb'  # TODO innvestigate says bgr?
-    patterns = None
+    __patterns = None
 
     def __init__(self):
         classifier_model = keras.applications.vgg19.VGG19(include_top=True, weights='imagenet')
@@ -781,7 +781,7 @@ class Inception_v3(Keras_App_Model):
     __name = 'inception_V3'
     _module = keras.applications.inception_v3
     __color_coding = 'rgb'
-    patterns = None
+    __patterns = None
 
     def __init__(self):
         classifier_model = keras.applications.inception_v3.InceptionV3(
@@ -807,7 +807,7 @@ class Inception_v4:
     """
 
     color_coding = 'rgb'
-    patterns = None
+    __patterns = None
 
     IMAGE_SIZE = (299,299)
 
@@ -846,7 +846,7 @@ class Inception_v4:
         return self.color_coding
 
     def get_patterns(self):
-        return self.patterns
+        return self.__patterns
 
 class Inception_Resnet_v2(Keras_App_Model):
     """
@@ -857,7 +857,7 @@ class Inception_Resnet_v2(Keras_App_Model):
     __name = 'inception_resnet_v2'
     _module = keras.applications.inception_resnet_v2
     __color_coding = 'rgb'
-    patterns = None
+    __patterns = None
 
     def __init__(self):
         classifier_model = keras.applications.inception_resnet_v2.InceptionResNetV2(
