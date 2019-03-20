@@ -35,6 +35,7 @@ import cv2
 #import models.inceptionV4.inception_v4 as inception_v4
 import models.model_utils as mutils
 import innvestigate.utils as iutils
+import utils.utils_imagenet as imagenet_utils
 
 __all__ = [
     "AlexNet",
@@ -92,7 +93,6 @@ class Hub_Model:
 
         for i in range(x.shape[0]):
             x[i] = _preprocess(x[i],**kwargs)
-
         return x
 
     def predict_wo_softmax(self,x, batch_size=None, verbose=0, steps=None):
@@ -131,22 +131,17 @@ class Keras_App_Model:
         """
 
         def _preprocess(x):
-            x = cv2.resize(x, dsize=self.get_image_size())
-            x = image.img_to_array(x)
-            x = x / np.amax(x)  # normalize input
             return self._module.preprocess_input(x, **kwargs)
 
         if not isinstance(x,np.ndarray):
             x = np.array(x)
 
         if x.ndim == 3:
-            x = _preprocess(x,**kwargs)
-            x = x[np.newaxis,...]
+            x = cv2.resize(x,self.get_image_size())
+            x = _preprocess(x[np.newaxis,...],**kwargs)
             return x
 
-        for i in range(x.shape[0]):
-            x[i] = _preprocess(x[i])
-
+        x = _preprocess(x)
         return x
 
     def predict_wo_softmax(self,x, batch_size=None, verbose=0, steps=None):
@@ -468,18 +463,28 @@ class VGG19(Keras_App_Model):
 ###############################################################################
 ###############################################################################
 
-class Resnet_v1_50(Hub_Model):
+class Resnet_v1_50(Keras_App_Model):
     """
-        Wrapper for ResNet V1 50 based on Tensorflow Hub
-        (https://tfhub.dev/google/imagenet/resnet_v1_50/classification/1)
+    Wrapper for Resnet v1 50 based on keras_applications
+    (https://github.com/keras-team/keras-applications)
     """
 
-    __classifier_url = "https://tfhub.dev/google/imagenet/resnet_v1_50/classification/1"  # @param {type:"string"}
+    __name = 'resnet v1 50'
+    _module = keras_applications.resnet
     __color_coding = 'rgb'
     __patterns = None
 
     def __init__(self):
-        self._classifier_model = mutils.get_hub_model(self.__classifier_url)
+        self._module.decode_predictions = mutils.keras_modules_injection(self._module.decode_predictions)
+        self._module.preprocess_input = mutils.keras_modules_injection(self._module.preprocess_input)
+
+        for app in dir(self._module):
+            if app[0].isupper():
+                setattr(self._module, app, mutils.keras_modules_injection(getattr(self._module, app)))
+        setattr(keras_applications, self.__name, self._module)
+
+        classifier_model_with_softmax = keras_applications.resnet.ResNet50(include_top=True, weights='imagenet')
+        self._classifier_model = iutils.keras.graph.model_wo_softmax(classifier_model_with_softmax)
 
     def get_model(self):
         return self._classifier_model
@@ -490,18 +495,29 @@ class Resnet_v1_50(Hub_Model):
     def get_patterns(self):
         return self.__patterns
 
-class Resnet_v1_101(Hub_Model):
+
+class Resnet_v1_101(Keras_App_Model):
     """
-        Wrapper for ResNet V1 101 based on Tensorflow Hub
-        (https://tfhub.dev/google/imagenet/resnet_v1_101/classification/1)
+    Wrapper for Resnet v1 101 based on keras_applications
+    (https://github.com/keras-team/keras-applications)
     """
 
-    __classifier_url = "https://tfhub.dev/google/imagenet/resnet_v1_101/classification/1"  # @param {type:"string"}
+    __name = 'resnet v1 101'
+    _module = keras_applications.resnet
     __color_coding = 'rgb'
     __patterns = None
 
     def __init__(self):
-        self._classifier_model = mutils.get_hub_model(self.__classifier_url)
+        self._module.decode_predictions = mutils.keras_modules_injection(self._module.decode_predictions)
+        self._module.preprocess_input = mutils.keras_modules_injection(self._module.preprocess_input)
+
+        for app in dir(self._module):
+            if app[0].isupper():
+                setattr(self._module, app, mutils.keras_modules_injection(getattr(self._module, app)))
+        setattr(keras_applications, self.__name, self._module)
+
+        classifier_model_with_softmax = keras_applications.resnet.ResNet101(include_top=True, weights='imagenet')
+        self._classifier_model = iutils.keras.graph.model_wo_softmax(classifier_model_with_softmax)
 
     def get_model(self):
         return self._classifier_model
@@ -512,18 +528,28 @@ class Resnet_v1_101(Hub_Model):
     def get_patterns(self):
         return self.__patterns
 
-class Resnet_v1_152(Hub_Model):
+class Resnet_v1_152(Keras_App_Model):
     """
-        Wrapper for ResNet V1 152 based on Tensorflow Hub
-        (https://tfhub.dev/google/imagenet/resnet_v1_152/classification/1)
+    Wrapper for Resnet v1 152 based on keras_applications
+    (https://github.com/keras-team/keras-applications)
     """
 
-    __classifier_url = "https://tfhub.dev/google/imagenet/resnet_v1_152/classification/1"  # @param {type:"string"}
+    __name = 'resnet v1 152'
+    _module = keras_applications.resnet
     __color_coding = 'rgb'
     __patterns = None
 
     def __init__(self):
-        self._classifier_model = mutils.get_hub_model(self.__classifier_url)
+        self._module.decode_predictions = mutils.keras_modules_injection(self._module.decode_predictions)
+        self._module.preprocess_input = mutils.keras_modules_injection(self._module.preprocess_input)
+
+        for app in dir(self._module):
+            if app[0].isupper():
+                setattr(self._module, app, mutils.keras_modules_injection(getattr(self._module, app)))
+        setattr(keras_applications, self.__name, self._module)
+
+        classifier_model_with_softmax = keras_applications.resnet.ResNet152(include_top=True, weights='imagenet')
+        self._classifier_model = iutils.keras.graph.model_wo_softmax(classifier_model_with_softmax)
 
     def get_model(self):
         return self._classifier_model
@@ -534,18 +560,28 @@ class Resnet_v1_152(Hub_Model):
     def get_patterns(self):
         return self.__patterns
 
-class Resnet_v2_50(Hub_Model):
+class Resnet_v2_50(Keras_App_Model):
     """
-        Wrapper for ResNet V2 50 based on Tensorflow Hub
-        (https://tfhub.dev/google/imagenet/resnet_v2_50/classification/1)
+    Wrapper for Resnet v2 50 based on keras_applications
+    (https://github.com/keras-team/keras-applications)
     """
 
-    __classifier_url = "https://tfhub.dev/google/imagenet/resnet_v2_50/classification/1"  # @param {type:"string"}
+    __name = 'resnet v2 50'
+    _module = keras_applications.resnet_v2
     __color_coding = 'rgb'
     __patterns = None
 
     def __init__(self):
-        self._classifier_model = mutils.get_hub_model(self.__classifier_url)
+        self._module.decode_predictions = mutils.keras_modules_injection(self._module.decode_predictions)
+        self._module.preprocess_input = mutils.keras_modules_injection(self._module.preprocess_input)
+
+        for app in dir(self._module):
+            if app[0].isupper():
+                setattr(self._module, app, mutils.keras_modules_injection(getattr(self._module, app)))
+        setattr(keras_applications, self.__name, self._module)
+
+        classifier_model_with_softmax = keras_applications.resnet_v2.ResNet50V2(include_top=True, weights='imagenet')
+        self._classifier_model = iutils.keras.graph.model_wo_softmax(classifier_model_with_softmax)
 
     def get_model(self):
         return self._classifier_model
@@ -556,18 +592,28 @@ class Resnet_v2_50(Hub_Model):
     def get_patterns(self):
         return self.__patterns
 
-class Resnet_v2_101(Hub_Model):
+class Resnet_v2_101(Keras_App_Model):
     """
-        Wrapper for ResNet V2 101 based on Tensorflow Hub
-        (https://tfhub.dev/google/imagenet/resnet_v2_101/classification/1)
+    Wrapper for Resnet v2 101 based on keras_applications
+    (https://github.com/keras-team/keras-applications)
     """
 
-    __classifier_url = "https://tfhub.dev/google/imagenet/resnet_v2_101/classification/1"  # @param {type:"string"}
+    __name = 'resnet v2 101'
+    _module = keras_applications.resnet_v2
     __color_coding = 'rgb'
     __patterns = None
 
     def __init__(self):
-        self._classifier_model = mutils.get_hub_model(self.__classifier_url)
+        self._module.decode_predictions = mutils.keras_modules_injection(self._module.decode_predictions)
+        self._module.preprocess_input = mutils.keras_modules_injection(self._module.preprocess_input)
+
+        for app in dir(self._module):
+            if app[0].isupper():
+                setattr(self._module, app, mutils.keras_modules_injection(getattr(self._module, app)))
+        setattr(keras_applications, self.__name, self._module)
+
+        classifier_model_with_softmax = keras_applications.resnet_v2.ResNet101V2(include_top=True, weights='imagenet')
+        self._classifier_model = iutils.keras.graph.model_wo_softmax(classifier_model_with_softmax)
 
     def get_model(self):
         return self._classifier_model
@@ -578,18 +624,28 @@ class Resnet_v2_101(Hub_Model):
     def get_patterns(self):
         return self.__patterns
 
-class Resnet_v2_152(Hub_Model):
+class Resnet_v2_152(Keras_App_Model):
     """
-        Wrapper for ResNet V2 152 based on Tensorflow Hub
-        (https://tfhub.dev/google/imagenet/resnet_v2_152/classification/1)
+    Wrapper for Resnet v2 152 based on keras_applications
+    (https://github.com/keras-team/keras-applications)
     """
 
-    __classifier_url = "https://tfhub.dev/google/imagenet/resnet_v2_152/classification/1"  # @param {type:"string"}
+    __name = 'resnet v2 152'
+    _module = keras_applications.resnet_v2
     __color_coding = 'rgb'
     __patterns = None
 
     def __init__(self):
-        self._classifier_model = mutils.get_hub_model(self.__classifier_url)
+        self._module.decode_predictions = mutils.keras_modules_injection(self._module.decode_predictions)
+        self._module.preprocess_input = mutils.keras_modules_injection(self._module.preprocess_input)
+
+        for app in dir(self._module):
+            if app[0].isupper():
+                setattr(self._module, app, mutils.keras_modules_injection(getattr(self._module, app)))
+        setattr(keras_applications, self.__name, self._module)
+
+        classifier_model_with_softmax = keras_applications.resnet_v2.ResNet152V2(include_top=True, weights='imagenet')
+        self._classifier_model = iutils.keras.graph.model_wo_softmax(classifier_model_with_softmax)
 
     def get_model(self):
         return self._classifier_model
@@ -716,18 +772,24 @@ class Inception_v2(Hub_Model):
     def get_patterns(self):
         return self.__patterns
 
-class Inception_v3(Hub_Model):
+
+class Inception_v3(Keras_App_Model):
     """
-        Wrapper for Inception V3 based on Tensorflow Hub
-        (https://tfhub.dev/google/imagenet/inception_v3/classification/1)
+        Wrapper for Inception v3 based on Keras Applications
+        (https://keras.io/applications/#inceptionv3)
     """
 
-    __classifier_url = "https://tfhub.dev/google/imagenet/inception_v3/classification/1"  # @param {type:"string"}
+    __name = 'inception_V3'
+    _module = keras.applications.inception_v3
     __color_coding = 'rgb'
-    __patterns = None
+    patterns = None
 
     def __init__(self):
-        self._classifier_model = mutils.get_hub_model(self.__classifier_url)
+        classifier_model = keras.applications.inception_v3.InceptionV3(
+            include_top=True,
+            weights='imagenet',
+        )
+        self._classifier_model = iutils.keras.graph.model_wo_softmax(classifier_model)
 
     def get_model(self):
         return self._classifier_model
@@ -787,18 +849,23 @@ class Inception_v4:
     def get_patterns(self):
         return self.patterns
 
-class Inception_Resnet_v2(Hub_Model):
+class Inception_Resnet_v2(Keras_App_Model):
     """
-        Wrapper for Inception ResNet V2 based on Tensorflow Hub
-        (https://tfhub.dev/google/imagenet/inception_resnet_v2/classification/1)
+        Wrapper for Inception ResNet v2 based on Keras Applications
+        (https://keras.io/applications/#inceptionresnetv2)
     """
 
-    __classifier_url = "https://tfhub.dev/google/imagenet/inception_resnet_v2/classification/1"  # @param {type:"string"}
+    __name = 'inception_resnet_v2'
+    _module = keras.applications.inception_resnet_v2
     __color_coding = 'rgb'
-    __patterns = None
+    patterns = None
 
     def __init__(self):
-        self._classifier_model = mutils.get_hub_model(self.__classifier_url)
+        classifier_model = keras.applications.inception_resnet_v2.InceptionResNetV2(
+            include_top=True,
+            weights='imagenet',
+        )
+        self._classifier_model = iutils.keras.graph.model_wo_softmax(classifier_model)
 
     def get_model(self):
         return self._classifier_model
