@@ -11,6 +11,12 @@ from __future__ import\
 from future.utils import raise_with_traceback, raise_from
 # catch exception with: except Exception as e
 from builtins import range, map, zip, filter
+import wget
+from keras.models import Sequential, Model
+from keras.layers import Dense, Activation, \
+    Dropout, Flatten, Conv2D, MaxPooling2D, \
+    Concatenate, Input, Lambda, merge, ZeroPadding2D
+from keras.layers.normalization import BatchNormalization
 from io import open
 import six
 # End: Python 2/3 compatability header small
@@ -27,6 +33,7 @@ from keras.preprocessing import image
 import keras.utils.data_utils
 import numpy as np
 import warnings
+import os
 
 import tensorflow as tf
 from scipy.special import softmax
@@ -163,7 +170,10 @@ class Keras_App_Model:
 class AlexNet:
     """
         Wrapper for AlexNet based on implementation of
-        University of Toronto
+        University of Toronto.
+
+        Warning: This net does not work yet
+
         (http://www.cs.toronto.edu/~guerzhoy/tf_alexnet/)
     """
 
@@ -171,180 +181,101 @@ class AlexNet:
     __color_coding = 'bgr'
     __patterns = None
 
-    def __init__(self):
-        def get_alexNet_model_wo_softmax(x):
-            filepath = 'models/alexNet/bvlc_alexnet.npy'
+    def __init__(self, download_location, include_top=True, weights='imagenet'):
+        def get_alexNet_model_wo_softmax(x, include_top=True):
+            def convLayer(x, name, filters, kernel_size=(3, 3), strides=(1, 1)
+                          , padding="valid", groups=1):
+                """(grouped) convolution"""
+                if groups == 1:
+                    y = Conv2D(filters=filters, kernel_size=kernel_size,
+                               strides=(strides), padding=padding)(x)
+                    y = Activation('relu')(y)
+                    return y
 
-            net_data = np.load(open(filepath, "rb"), encoding="latin1").item()
+                x_new = []
+                channels = int(x.get_shape()[-1])
+                split = int(channels / groups)
+                split_upper = split
+                split_lower = 0
+                for i in range(groups):
+                    x_new.append(Lambda(lambda x: x[:, :, :, split_lower:split_upper])(x))
+                    split_lower = split_lower + split_upper
+                    split_upper = split_upper + split_upper
+                featureMaps = [Conv2D(filters=int(filters / groups), kernel_size=kernel_size,
+                                      strides=(strides), padding=padding, name=str(name)+'_' + str(i + 1))(x_n) for i,x_n in enumerate(x_new)]
 
-            def conv(input, kernel, biases, k_h, k_w, c_o, s_h, s_w, padding="VALID", group=1):
-                '''From https://github.com/ethereon/caffe-tensorflow
-                '''
-                c_i = input.get_shape()[-1]
-                assert c_i % group == 0
-                assert c_o % group == 0
-                convolve = lambda i, k: tf.nn.conv2d(i, k, [1, s_h, s_w, 1], padding=padding)
+                # y = tf.concat(axis=3, values=featureMaps)
+                y = Concatenate(axis=-1, name=name)(featureMaps)
+                y = Activation('relu')(y)
+                return y
 
-                if group == 1:
-                    conv = convolve(input, kernel)
-                else:
-                    input_groups = tf.split(input, group, 3)  # tf.split(3, group, input)
-                    kernel_groups = tf.split(kernel, group, 3)  # tf.split(3, group, kernel)
-                    output_groups = [convolve(i, k) for i, k in zip(input_groups, kernel_groups)]
-                    conv = tf.concat(output_groups, 3)  # tf.concat(3, output_groups)
-                return tf.reshape(tf.nn.bias_add(conv, biases), [-1] + conv.get_shape().as_list()[1:])
+            def crosschannelnormalization(alpha=1e-4, k=2, beta=0.75, n=5, **kwargs):
+                """
+                This is the function used for cross channel normalization in the original
+                Alexnet
+                """
 
-            # x = tf.placeholder(tf.float32, (None,) + xdim)
+                def f(X):
+                    b, ch, r, c = X.shape
+                    half = n // 2
+                    square = K.square(X)
+                    extra_channels = K.spatial_2d_padding(K.permute_dimensions(square, (0, 2, 3, 1))
+                                                          , (0, half))
+                    extra_channels = K.permute_dimensions(extra_channels, (0, 3, 1, 2))
+                    scale = k
+                    for i in range(n):
+                        scale += alpha * extra_channels[:, i:i + ch, :, :]
+                    scale = scale ** beta
+                    return X / scale
 
-            # conv1
-            # conv(11, 11, 96, 4, 4, padding='VALID', name='conv1')
-            k_h = 11;
-            k_w = 11;
-            c_o = 96;
-            s_h = 4;
-            s_w = 4
-            conv1W = tf.Variable(net_data["conv1"][0])
-            conv1b = tf.Variable(net_data["conv1"][1])
-            conv1_in = conv(x, conv1W, conv1b, k_h, k_w, c_o, s_h, s_w, padding="SAME", group=1)
-            conv1 = tf.nn.relu(conv1_in)
+                return Lambda(f, output_shape=lambda input_shape: input_shape, **kwargs)
 
-            # lrn1
-            # lrn(2, 2e-05, 0.75, name='norm1')
-            radius = 2;
-            alpha = 2e-05;
-            beta = 0.75;
-            bias = 1.0
-            lrn1 = tf.nn.local_response_normalization(conv1,
-                                                      depth_radius=radius,
-                                                      alpha=alpha,
-                                                      beta=beta,
-                                                      bias=bias)
+            conv_1 = Conv2D(96, 11, 11, subsample=(4, 4), activation='relu',
+                                   name='conv_1')(x)
 
-            # maxpool1
-            # max_pool(3, 3, 2, 2, padding='VALID', name='pool1')
-            k_h = 3;
-            k_w = 3;
-            s_h = 2;
-            s_w = 2;
-            padding = 'VALID'
-            maxpool1 = tf.nn.max_pool(lrn1, ksize=[1, k_h, k_w, 1], strides=[1, s_h, s_w, 1], padding=padding)
+            conv_2 = MaxPooling2D((3, 3), strides=(2, 2))(conv_1)
+            conv_2 = crosschannelnormalization()(conv_2)
+            conv_2 = ZeroPadding2D((2, 2))(conv_2)
+            conv_2 = convLayer(conv_2, name='conv_2', filters=128, kernel_size=(5,5),padding="same",groups=2)
 
-            # conv2
-            # conv(5, 5, 256, 1, 1, group=2, name='conv2')
-            k_h = 5;
-            k_w = 5;
-            c_o = 256;
-            s_h = 1;
-            s_w = 1;
-            group = 2
-            conv2W = tf.Variable(net_data["conv2"][0])
-            conv2b = tf.Variable(net_data["conv2"][1])
-            conv2_in = conv(maxpool1, conv2W, conv2b, k_h, k_w, c_o, s_h, s_w, padding="SAME", group=group)
-            conv2 = tf.nn.relu(conv2_in)
+            conv_3 = MaxPooling2D((3, 3), strides=(2, 2))(conv_2)
+            conv_3 = BatchNormalization()(conv_3)
+            conv_3 = ZeroPadding2D((1, 1))(conv_3)
+            conv_3 = Conv2D(384, 3, 3, activation='relu', name='conv_3')(conv_3)
 
-            # lrn2
-            # lrn(2, 2e-05, 0.75, name='norm2')
-            radius = 2;
-            alpha = 2e-05;
-            beta = 0.75;
-            bias = 1.0
-            lrn2 = tf.nn.local_response_normalization(conv2,
-                                                      depth_radius=radius,
-                                                      alpha=alpha,
-                                                      beta=beta,
-                                                      bias=bias)
+            conv_4 = ZeroPadding2D((1, 1))(conv_3)
+            conv_4 = convLayer(conv_4, name='conv_4', filters=192, kernel_size=(3, 3), padding="same", groups=2)
 
-            # maxpool2
-            # max_pool(3, 3, 2, 2, padding='VALID', name='pool2')
-            k_h = 3;
-            k_w = 3;
-            s_h = 2;
-            s_w = 2;
-            padding = 'VALID'
-            maxpool2 = tf.nn.max_pool(lrn2, ksize=[1, k_h, k_w, 1], strides=[1, s_h, s_w, 1], padding=padding)
+            conv_5 = ZeroPadding2D((1, 1))(conv_4)
+            conv_5 = convLayer(conv_5, name='conv_5', filters=128, kernel_size=(3, 3), padding="same", groups=2)
 
-            # conv3
-            # conv(3, 3, 384, 1, 1, name='conv3')
-            k_h = 3;
-            k_w = 3;
-            c_o = 384;
-            s_h = 1;
-            s_w = 1;
-            group = 1
-            conv3W = tf.Variable(net_data["conv3"][0])
-            conv3b = tf.Variable(net_data["conv3"][1])
-            conv3_in = conv(maxpool2, conv3W, conv3b, k_h, k_w, c_o, s_h, s_w, padding="SAME", group=group)
-            conv3 = tf.nn.relu(conv3_in)
+            y = MaxPooling2D((3, 3), strides=(2, 2), name='convpool_5')(conv_5)
 
-            # conv4
-            # conv(3, 3, 384, 1, 1, group=2, name='conv4')
-            k_h = 3;
-            k_w = 3;
-            c_o = 384;
-            s_h = 1;
-            s_w = 1;
-            group = 2
-            conv4W = tf.Variable(net_data["conv4"][0])
-            conv4b = tf.Variable(net_data["conv4"][1])
-            conv4_in = conv(conv3, conv4W, conv4b, k_h, k_w, c_o, s_h, s_w, padding="SAME", group=group)
-            conv4 = tf.nn.relu(conv4_in)
+            if include_top:
+                dense_1 = Flatten(name='flatten')(y)
+                dense_1 = Dense(4096, activation='relu', name='dense_1')(dense_1)
+                dense_2 = Dropout(0.5)(dense_1)
+                dense_2 = Dense(4096, activation='relu', name='dense_2')(dense_2)
+                dense_3 = Dropout(0.5)(dense_2)
+                dense_3 = Dense(1000, name='dense_3')(dense_3)
+                y = Activation('softmax', name='softmax')(dense_3)
 
-            # conv5
-            # conv(3, 3, 256, 1, 1, group=2, name='conv5')
-            k_h = 3;
-            k_w = 3;
-            c_o = 256;
-            s_h = 1;
-            s_w = 1;
-            group = 2
-            conv5W = tf.Variable(net_data["conv5"][0])
-            conv5b = tf.Variable(net_data["conv5"][1])
-            conv5_in = conv(conv4, conv5W, conv5b, k_h, k_w, c_o, s_h, s_w, padding="SAME", group=group)
-            conv5 = tf.nn.relu(conv5_in)
+            #model = Model(inputs=[x], outputs=[y])
 
-            # maxpool5
-            # max_pool(3, 3, 2, 2, padding='VALID', name='pool5')
-            k_h = 3;
-            k_w = 3;
-            s_h = 2;
-            s_w = 2;
-            padding = 'VALID'
-            maxpool5 = tf.nn.max_pool(conv5, ksize=[1, k_h, k_w, 1], strides=[1, s_h, s_w, 1], padding=padding)
-
-            # fc6
-            # fc(4096, name='fc6')
-            fc6W = tf.Variable(net_data["fc6"][0])
-            fc6b = tf.Variable(net_data["fc6"][1])
-            fc6 = tf.nn.relu_layer(tf.reshape(maxpool5, [-1, int(np.prod(maxpool5.get_shape()[1:]))]), fc6W, fc6b)
-
-            # fc7
-            # fc(4096, name='fc7')
-            fc7W = tf.Variable(net_data["fc7"][0])
-            fc7b = tf.Variable(net_data["fc7"][1])
-            fc7 = tf.nn.relu_layer(fc6, fc7W, fc7b)
-
-            # fc8
-            # fc(1000, relu=False, name='fc8')
-            fc8W = tf.Variable(net_data["fc8"][0])
-            fc8b = tf.Variable(net_data["fc8"][1])
-            fc8 = tf.nn.xw_plus_b(fc7, fc8W, fc8b)
-
-            # prob
-            # softmax(name='prob'))
-            # prob = tf.nn.softmax(fc8)
-
-            init = tf.initialize_all_variables()
-            sess = tf.Session()
-            sess.run(init)
-
-            return fc8
+            return y
 
         input = layers.Input(shape=list(self._IMAGE_SIZE) + [3])
-        network_output = layers.Lambda(get_alexNet_model_wo_softmax)(input)
+        network_output = get_alexNet_model_wo_softmax(input, include_top=include_top)
         self._classifier_model = keras.models.Model(
             inputs=[input],
             outputs=[network_output]
         )
+
+        if weights == 'imagenet':
+            url = 'http://files.heuritech.com/weights/alexnet_weights.h5'
+            if not os.path.isfile(download_location+'/alexnet_weights.h5'):
+                wget.download(url, download_location)
+            self._classifier_model.load_weights(download_location+'/alexnet_weights.h5')
 
     def preprocess_input(self, x, **kwargs):
         x = x.resize(self._IMAGE_SIZE)
@@ -389,9 +320,12 @@ class VGG16(Keras_App_Model):
     __color_coding = 'rgb'#TODO innvestigate says bgr?
     __patterns = None
 
-    def __init__(self):
-        classifier_model = keras.applications.vgg16.VGG16(include_top=True, weights='imagenet')
-        self._classifier_model = iutils.keras.graph.model_wo_softmax(classifier_model)
+    def __init__(self, include_top=True, weights='imagenet'):
+        classifier_model = keras.applications.vgg16.VGG16(include_top=include_top, weights=weights)
+        if include_top:
+            self._classifier_model = iutils.keras.graph.model_wo_softmax(classifier_model)
+        else:
+            self._classifier_model = classifier_model
 
         try:
             pattern_info = mutils._get_patterns_info(self.__name, "relu")
@@ -429,9 +363,12 @@ class VGG19(Keras_App_Model):
     __color_coding = 'rgb'  # TODO innvestigate says bgr?
     __patterns = None
 
-    def __init__(self):
-        classifier_model = keras.applications.vgg19.VGG19(include_top=True, weights='imagenet')
-        self._classifier_model = iutils.keras.graph.model_wo_softmax(classifier_model)
+    def __init__(self, include_top=True, weights='imagenet'):
+        classifier_model = keras.applications.vgg19.VGG19(include_top=include_top, weights=weights)
+        if include_top:
+            self._classifier_model = iutils.keras.graph.model_wo_softmax(classifier_model)
+        else:
+            self._classifier_model = classifier_model
 
         try:
             pattern_info = mutils._get_patterns_info(self.__name, "relu")
@@ -473,7 +410,7 @@ class Resnet_v1_50(Keras_App_Model):
     __color_coding = 'rgb'
     __patterns = None
 
-    def __init__(self):
+    def __init__(self, include_top=True, weights='imagenet'):
         self._module.decode_predictions = mutils.keras_modules_injection(self._module.decode_predictions)
         self._module.preprocess_input = mutils.keras_modules_injection(self._module.preprocess_input)
 
@@ -482,8 +419,11 @@ class Resnet_v1_50(Keras_App_Model):
                 setattr(self._module, app, mutils.keras_modules_injection(getattr(self._module, app)))
         setattr(keras_applications, self.__name, self._module)
 
-        classifier_model_with_softmax = keras_applications.resnet.ResNet50(include_top=True, weights='imagenet')
-        self._classifier_model = iutils.keras.graph.model_wo_softmax(classifier_model_with_softmax)
+        classifier_model = keras_applications.resnet.ResNet50(include_top=include_top, weights=weights)
+        if include_top:
+            self._classifier_model = iutils.keras.graph.model_wo_softmax(classifier_model)
+        else:
+            self._classifier_model = classifier_model
 
     def get_model(self):
         return self._classifier_model
@@ -506,7 +446,7 @@ class Resnet_v1_101(Keras_App_Model):
     __color_coding = 'rgb'
     __patterns = None
 
-    def __init__(self):
+    def __init__(self, include_top=True, weights='imagenet'):
         self._module.decode_predictions = mutils.keras_modules_injection(self._module.decode_predictions)
         self._module.preprocess_input = mutils.keras_modules_injection(self._module.preprocess_input)
 
@@ -515,8 +455,12 @@ class Resnet_v1_101(Keras_App_Model):
                 setattr(self._module, app, mutils.keras_modules_injection(getattr(self._module, app)))
         setattr(keras_applications, self.__name, self._module)
 
-        classifier_model_with_softmax = keras_applications.resnet.ResNet101(include_top=True, weights='imagenet')
-        self._classifier_model = iutils.keras.graph.model_wo_softmax(classifier_model_with_softmax)
+        classifier_model = keras_applications.resnet.ResNet101(include_top=include_top, weights=weights)
+        if include_top:
+            self._classifier_model = iutils.keras.graph.model_wo_softmax(classifier_model)
+        else:
+            self._classifier_model = classifier_model
+
 
     def get_model(self):
         return self._classifier_model
@@ -538,7 +482,7 @@ class Resnet_v1_152(Keras_App_Model):
     __color_coding = 'rgb'
     __patterns = None
 
-    def __init__(self):
+    def __init__(self, include_top=True, weights='imagenet'):
         self._module.decode_predictions = mutils.keras_modules_injection(self._module.decode_predictions)
         self._module.preprocess_input = mutils.keras_modules_injection(self._module.preprocess_input)
 
@@ -547,8 +491,11 @@ class Resnet_v1_152(Keras_App_Model):
                 setattr(self._module, app, mutils.keras_modules_injection(getattr(self._module, app)))
         setattr(keras_applications, self.__name, self._module)
 
-        classifier_model_with_softmax = keras_applications.resnet.ResNet152(include_top=True, weights='imagenet')
-        self._classifier_model = iutils.keras.graph.model_wo_softmax(classifier_model_with_softmax)
+        classifier_model = keras_applications.resnet.ResNet152(include_top=include_top, weights=weights)
+        if include_top:
+            self._classifier_model = iutils.keras.graph.model_wo_softmax(classifier_model)
+        else:
+            self._classifier_model = classifier_model
 
     def get_model(self):
         return self._classifier_model
@@ -570,7 +517,7 @@ class Resnet_v2_50(Keras_App_Model):
     __color_coding = 'rgb'
     __patterns = None
 
-    def __init__(self):
+    def __init__(self, include_top=True, weights='imagenet'):
         self._module.decode_predictions = mutils.keras_modules_injection(self._module.decode_predictions)
         self._module.preprocess_input = mutils.keras_modules_injection(self._module.preprocess_input)
 
@@ -579,8 +526,11 @@ class Resnet_v2_50(Keras_App_Model):
                 setattr(self._module, app, mutils.keras_modules_injection(getattr(self._module, app)))
         setattr(keras_applications, self.__name, self._module)
 
-        classifier_model_with_softmax = keras_applications.resnet_v2.ResNet50V2(include_top=True, weights='imagenet')
-        self._classifier_model = iutils.keras.graph.model_wo_softmax(classifier_model_with_softmax)
+        classifier_model = keras_applications.resnet_v2.ResNet50V2(include_top=include_top, weights=weights)
+        if include_top:
+            self._classifier_model = iutils.keras.graph.model_wo_softmax(classifier_model)
+        else:
+            self._classifier_model = classifier_model
 
     def get_model(self):
         return self._classifier_model
@@ -602,7 +552,7 @@ class Resnet_v2_101(Keras_App_Model):
     __color_coding = 'rgb'
     __patterns = None
 
-    def __init__(self):
+    def __init__(self, include_top=True, weights='imagenet'):
         self._module.decode_predictions = mutils.keras_modules_injection(self._module.decode_predictions)
         self._module.preprocess_input = mutils.keras_modules_injection(self._module.preprocess_input)
 
@@ -611,9 +561,11 @@ class Resnet_v2_101(Keras_App_Model):
                 setattr(self._module, app, mutils.keras_modules_injection(getattr(self._module, app)))
         setattr(keras_applications, self.__name, self._module)
 
-        classifier_model_with_softmax = keras_applications.resnet_v2.ResNet101V2(include_top=True, weights='imagenet')
-        self._classifier_model = iutils.keras.graph.model_wo_softmax(classifier_model_with_softmax)
-
+        classifier_model = keras_applications.resnet_v2.ResNet101V2(include_top=include_top, weights=weights)
+        if include_top:
+            self._classifier_model = iutils.keras.graph.model_wo_softmax(classifier_model)
+        else:
+            self._classifier_model = classifier_model
     def get_model(self):
         return self._classifier_model
 
@@ -634,7 +586,7 @@ class Resnet_v2_152(Keras_App_Model):
     __color_coding = 'rgb'
     __patterns = None
 
-    def __init__(self):
+    def __init__(self, include_top=True, weights='imagenet'):
         self._module.decode_predictions = mutils.keras_modules_injection(self._module.decode_predictions)
         self._module.preprocess_input = mutils.keras_modules_injection(self._module.preprocess_input)
 
@@ -643,8 +595,12 @@ class Resnet_v2_152(Keras_App_Model):
                 setattr(self._module, app, mutils.keras_modules_injection(getattr(self._module, app)))
         setattr(keras_applications, self.__name, self._module)
 
-        classifier_model_with_softmax = keras_applications.resnet_v2.ResNet152V2(include_top=True, weights='imagenet')
-        self._classifier_model = iutils.keras.graph.model_wo_softmax(classifier_model_with_softmax)
+        classifier_model = keras_applications.resnet_v2.ResNet152V2(include_top=include_top, weights=weights)
+
+        if include_top:
+            self._classifier_model = iutils.keras.graph.model_wo_softmax(classifier_model)
+        else:
+            self._classifier_model = classifier_model
 
     def get_model(self):
         return self._classifier_model
@@ -759,8 +715,8 @@ class Inception_v2(Hub_Model):
     __color_coding = 'rgb'
     __patterns = None
 
-    def __init__(self):
-        self._classifier_model = mutils.get_hub_model(self.__classifier_url)
+    def __init__(self, include_top=True, weights='imagenet'):
+        self._classifier_model = mutils.get_hub_model(self.__classifier_url ,include_top=include_top, weights=weights)
 
     def get_model(self):
         return self._classifier_model
@@ -783,12 +739,15 @@ class Inception_v3(Keras_App_Model):
     __color_coding = 'rgb'
     __patterns = None
 
-    def __init__(self):
+    def __init__(self, include_top=True, weights='imagenet'):
         classifier_model = keras.applications.inception_v3.InceptionV3(
-            include_top=True,
-            weights='imagenet',
+            include_top=include_top,
+            weights=weights,
         )
-        self._classifier_model = iutils.keras.graph.model_wo_softmax(classifier_model)
+        if include_top:
+            self._classifier_model = iutils.keras.graph.model_wo_softmax(classifier_model)
+        else:
+            self._classifier_model = classifier_model
 
     def get_model(self):
         return self._classifier_model
@@ -811,8 +770,8 @@ class Inception_v4:
 
     IMAGE_SIZE = (299,299)
 
-    def __init__(self):
-        classifier_model_with_softmax = inception_v4.create_model(weights='imagenet', include_top=True)
+    def __init__(self, include_top=True, weights='imagenet'):
+        classifier_model_with_softmax = inception_v4.create_model(weights=weights, include_top=include_top)
         self._classifier_model = iutils.keras.graph.model_wo_softmax(classifier_model_with_softmax)
 
     def preprocess_input(self, x, **kwargs):
@@ -859,12 +818,15 @@ class Inception_Resnet_v2(Keras_App_Model):
     __color_coding = 'rgb'
     __patterns = None
 
-    def __init__(self):
+    def __init__(self, include_top=True, weights='imagenet'):
         classifier_model = keras.applications.inception_resnet_v2.InceptionResNetV2(
-            include_top=True,
-            weights='imagenet',
+            include_top=include_top,
+            weights=weights,
         )
-        self._classifier_model = iutils.keras.graph.model_wo_softmax(classifier_model)
+        if include_top:
+            self._classifier_model = iutils.keras.graph.model_wo_softmax(classifier_model)
+        else:
+            self._classifier_model = classifier_model
 
     def get_model(self):
         return self._classifier_model
