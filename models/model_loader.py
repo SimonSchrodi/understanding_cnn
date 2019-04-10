@@ -320,8 +320,8 @@ class VGG16(Keras_App_Model):
     __color_coding = 'rgb'#TODO innvestigate says bgr?
     __patterns = None
 
-    def __init__(self, include_top=True, weights='imagenet'):
-        classifier_model = keras.applications.vgg16.VGG16(include_top=include_top, weights=weights)
+    def __init__(self, include_top=True, weights='imagenet', input_shape=(224,224,3)):
+        classifier_model = keras.applications.vgg16.VGG16(include_top=include_top, weights=weights, input_shape=input_shape)
         if include_top:
             self._classifier_model = iutils.keras.graph.model_wo_softmax(classifier_model)
         else:
