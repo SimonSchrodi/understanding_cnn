@@ -28,3 +28,17 @@ img_batch = model.preprocess_input(img)
 preds = model.predict_with_softmax(img_batch)
 print(model.decode_predictions(preds, top=5))
 ```
+
+## [Notebooks](https://github.com/infomon/understanding-cnn/tree/master/notebooks)
+The experiments are executed on Google Colab.
+This filter contains multiple notebooks containing the following information:
+
+* [Bottleneck Features](https://github.com/infomon/understanding_cnn/blob/master/notebooks/Bottleneck_features.ipynb): Visualizes bottleneck features. Since bottleneck features are high-dimensional, a dimension reduction algorithm ([UMAP](https://arxiv.org/abs/1802.03426)) is used. 
+For each CNN we cut the classifier off. 
+Then 50000 examples with 10 different classes ([CIFAR-10](https://www.cs.toronto.edu/~kriz/cifar.html)) are classified and the bottleneck feature maps are stored.
+After that UMAP is used to generate visualizations.
+* [Compare visualizing methods on MNIST](https://github.com/infomon/understanding_cnn/blob/master/notebooks/Compare_Methods_on_MNIST.ipynb)
+Analyze and compare visualizing methods on MNIST images
+* [Compare visualizing methods on ImageNet](https://github.com/infomon/understanding_cnn/blob/master/notebooks/Compare_methods_on_ImageNet.ipynb)
+Analyze and compare visualizing methods on images contained in [this folder](https://github.com/infomon/understanding_cnn/tree/master/data/images)
+Pretrained ImageNet Models are used.
